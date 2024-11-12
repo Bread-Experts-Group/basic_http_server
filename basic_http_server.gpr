@@ -8,11 +8,12 @@ project Basic_Http_Server is
    for Main use ("basic_http_server.adb");
 
    package Compiler is
-      for Default_Switches ("Ada") use Basic_Http_Server_Config.Ada_Compiler_Switches & ("-gnatX");
+      for Switches ("Ada") use ("-gnatX");
+      for Default_Switches ("Ada") use Basic_Http_Server_Config.Ada_Compiler_Switches;
    end Compiler;
 
    package Binder is
-      for Switches ("Ada") use ("-Es"); --  Symbolic traceback
+      for Switches ("Ada") use ("-Es");
    end Binder;
 
    package Install is
