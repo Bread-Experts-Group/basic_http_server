@@ -86,6 +86,9 @@ procedure Basic_HTTP_Server is
       This_Channel    : GNAT.Sockets.Stream_Access;
       This_Index      : Index;
 
+      Search      : Search_Type;
+      Search_Item : Directory_Entry_Type;
+
    begin
       loop
          accept Setup (Connection : GNAT.Sockets.Socket_Type;
@@ -115,17 +118,24 @@ procedure Basic_HTTP_Server is
                      | PUT =>
                      declare
 
-                        Target        : constant String := Request.Target.Element;
-                        Composed_Path : constant String := (if Target'Length > 1 then Current_Directory & '/' & Target (2 .. Target'Length) else Current_Directory);
+                        Target          : constant String := Request.Target.Element;
+                        Composed_Path   : constant String := (if Target'Length > 1 then Current_Directory & '/' & Target (2 .. Target'Length) else Current_Directory);
+                        Composed_Actual : constant String := Full_Name (Composed_Path);
 
                      begin
+                        if Composed_Actual'Length < Current_Directory'Length or else Composed_Actual (1 .. Current_Directory'Length) /= Current_Directory
+                        then
+                           Send.Status := 403;
+                           goto Send_Response;
+                        end if;
+
                         case Request.Method is
                            when GET =>
-                              if Exists (Composed_Path)
+                              if Exists (Composed_Actual)
                               then
-                                 case Kind (Composed_Path) is
+                                 case Kind (Composed_Actual) is
                                     when Ordinary_File =>
-                                       Open (F, In_File, Composed_Path);
+                                       Open (F, In_File, Composed_Actual);
 
                                        declare
 
@@ -146,24 +156,18 @@ procedure Basic_HTTP_Server is
                                     when Directory =>
                                        declare
 
-                                          Filter      : constant Filter_Type :=
-                                            (Ordinary_File => True,
-                                             Special_File  => True,
-                                             Directory     => True);
-                                          Search      : Search_Type;
-                                          Search_Item : Directory_Entry_Type;
                                           Contents    : Unbounded_String;
                                           Padded_Kind : String (1 .. Ordinary_File'Image'Length);
                                           Padded_Size : String (1 .. 12);
 
                                        begin
-                                          Search.Start_Search (Directory => Composed_Path, Pattern => "", Filter => Filter);
+                                          Search.Start_Search (Directory => Composed_Actual, Pattern => "");
 
                                           while Search.More_Entries
                                           loop
                                              Search.Get_Next_Entry (Search_Item);
 
-                                             if (Search_Item.Simple_Name = ".." and then Composed_Path /= Current_Directory)
+                                             if (Search_Item.Simple_Name = ".." and then Composed_Actual /= Current_Directory)
                                                or else (Search_Item.Simple_Name /= "." and then Search_Item.Simple_Name /= "..")
                                              then
                                                 Ada.Strings.Fixed.Move (Search_Item.Kind'Image, Padded_Kind, Justify => Ada.Strings.Right);
@@ -194,21 +198,21 @@ procedure Basic_HTTP_Server is
                               end if;
 
                            when PUT =>
-                              if Exists (Composed_Path) and then Kind (Composed_Path) = Directory
+                              if Exists (Composed_Actual) and then Kind (Composed_Actual) = Directory
                               then
                                  Send.Status := 409;
 
                               else
-                                 if not Exists (Composed_Path)
+                                 if not Exists (Composed_Actual)
                                  then
-                                    Create_Path (Composed_Path);
-                                    Delete_Directory (Composed_Path);
+                                    Create_Path (Composed_Actual);
+                                    Delete_Directory (Composed_Actual);
                                     Send.Status := 201;
 
                                  else
                                     Send.Status := 204;
                                  end if;
-                                 Create (F, Out_File, Composed_Path);
+                                 Create (F, Out_File, Composed_Actual);
                                  String'Write (Stream (F), Request.Message_Body.Element);
                                  Close (F);
                               end if;
@@ -232,6 +236,8 @@ procedure Basic_HTTP_Server is
                   Ada.Text_IO.Put_Line (E.Exception_Information);
                   Send.Status := 500;
             end;
+
+            <<Send_Response>>
 
             if Is_Open (F)
             then
