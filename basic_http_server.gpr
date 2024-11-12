@@ -7,8 +7,12 @@ project Basic_Http_Server is
    for Exec_Dir use "bin";
    for Main use ("basic_http_server.adb");
 
+   package Builder is
+      for Switches ("Ada") use ("-m2", "-d");
+   end Builder;
+
    package Compiler is
-      for Switches ("Ada") use ("-gnatX");
+      for Switches ("Ada") use ("-gnatX", "-gnatyM179");
       for Default_Switches ("Ada") use Basic_Http_Server_Config.Ada_Compiler_Switches;
    end Compiler;
 
