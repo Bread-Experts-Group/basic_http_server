@@ -1,0 +1,16 @@
+name = "basic_http_server"
+description = "A basic HTTP/Maven server using extensible_http as a backbone."
+version = "0.1.0-dev"
+
+authors = ["Miko R. Elbrecht"]
+maintainers = ["Miko R. Elbrecht <pmt.mailservice@gmail.com>"]
+maintainers-logins = ["ATPStorages"]
+licenses = "Apache-2.0 WITH LLVM-exception"
+website = "https://javart.zip/p/basic_http_server"
+tags = ["http", "https", "server"]
+
+[[depends-on]]
+extensible_http = "~0.1.0-dev"
+
+[[pins]]
+extensible_http = { path='../extensible_http' }

@@ -1,0 +1,8 @@
+basic_http_server.adb:4:29: warning: use clause for package "IO_Exceptions" has no effect [-gnatwu]
+basic_http_server.adb:73:07: warning: variable "This_Client" is assigned but never read [-gnatwm]
+basic_http_server.adb:93:48: warning: aggregate not fully initialized [-gnatwv]
+basic_http_server.adb:100:25: warning: "Target" is not modified, could be declared constant [-gnatwk]
+basic_http_server.adb:101:25: warning: "Composed_Path" is not modified, could be declared constant [-gnatwk]
+basic_http_server.adb:128:43: warning: "Filter" is not modified, could be declared constant [-gnatwk]
+basic_http_server.adb:129:45: warning: array aggregate using () is an obsolescent syntax, use [] instead [-gnatwj]
+basic_http_server.adb:221:21: warning: variable "E" is not referenced [-gnatwu]
