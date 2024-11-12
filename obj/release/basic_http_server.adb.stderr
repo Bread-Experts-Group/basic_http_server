@@ -1,1 +1,0 @@
-basic_http_server.adb:93:48: warning: aggregate not fully initialized [-gnatwv]

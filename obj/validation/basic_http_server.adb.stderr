@@ -1,1 +1,0 @@
-basic_http_server.adb:72:13: warning: formal parameter "Client" is not referenced [-gnatwf]

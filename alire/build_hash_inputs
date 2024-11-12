@@ -1,5 +1,0 @@
-dependency:extensible_http=0.1.0-dev=428edb30285faebaa42e3ab57142605980161156b9225760b42c75984ecf0542
-external:BASIC_HTTP_SERVER_LIBRARY_TYPE=default
-external:LIBRARY_TYPE=default
-profile:basic_http_server=DEVELOPMENT
-switches:basic_http_server=-Og,-fdata-sections,-ffunction-sections,-g,-gnatVa,-gnatW8,-gnatw.X,-gnatwa,-gnaty-d,-gnaty3,-gnatyA,-gnatyB,-gnatyI,-gnatyO,-gnatyS,-gnatya,-gnatyb,-gnatyc,-gnatye,-gnatyf,-gnatyh,-gnatyi,-gnatyk,-gnatyl,-gnatym,-gnatyn,-gnatyp,-gnatyr,-gnatyt,-gnatyu,-gnatyx
