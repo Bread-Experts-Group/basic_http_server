@@ -198,6 +198,39 @@ procedure Basic_HTTP_Server is
                               end if;
 
                            when PUT =>
+                              if PUT_Username.all = "<none>" and then PUT_Password.all = "<none>"
+                              then
+                                 goto PUT_Actual;
+                              end if;
+
+                              if Request.Fields.Contains ("Authorization")
+                              then
+                                 declare
+
+                                    Authorization : String := Request.Fields.Element ("Authorization");
+
+                                 begin
+                                    if Authorization (1 .. 5) = "Basic"
+                                    then
+                                       declare
+
+                                          Decoded   : String  := Decode_Base64 (Authorization (7 .. Authorization'Last));
+                                          Delimiter : Natural := Ada.Strings.Fixed.Index (Decoded, ":", 1);
+
+                                       begin
+                                          if (PUT_Username.all = "<none>" or else Decoded (1 .. Delimiter - 1) = PUT_Username.all)
+                                            and then (PUT_Password.all = "<none>" or else Decoded (Delimiter + 1 .. Decoded'Length) = PUT_Password.all)
+                                          then
+                                             goto PUT_Actual;
+                                          end if;
+                                       end;
+                                    end if;
+                                 end;
+                              end if;
+                              Send.Status := 403;
+                              goto Send_Response;
+                              <<PUT_Actual>>
+
                               if Exists (Composed_Actual) and then Kind (Composed_Actual) = Directory
                               then
                                  Send.Status := 409;
