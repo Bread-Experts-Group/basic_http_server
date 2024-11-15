@@ -17,6 +17,12 @@ use GNAT.Command_Line;
 with Extensible_HTTP;
 use Extensible_HTTP;
 
+with Extensible_HTTP.HTTP11;
+use Extensible_HTTP.HTTP11;
+
+with Extensible_HTTP.Base64;
+use Extensible_HTTP.Base64;
+
 procedure Basic_HTTP_Server is
 
    Tasks_To_Create : constant := 50;
