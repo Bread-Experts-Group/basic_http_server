@@ -76,11 +76,8 @@ procedure Basic_HTTP_Server is
    Maven_Directory : aliased GNAT.Strings.String_Access := new String'(Current_Directory);
 
    task type SocketTask is
-      entry Setup (Connection : GNAT.Sockets.Socket_Type;
-               --   Client     : GNAT.Sockets.Sock_Addr_Type;
-               Channel        : GNAT.Sockets.Stream_Access; Task_Index : Index);
+      entry Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Task_Index : Index);
       entry Start;
-
    end SocketTask;
 
    task body SocketTask is
