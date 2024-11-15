@@ -16,10 +16,8 @@ use GNAT.Command_Line;
 
 with Extensible_HTTP;
 use Extensible_HTTP;
-
 with Extensible_HTTP.HTTP11;
 use Extensible_HTTP.HTTP11;
-
 with Extensible_HTTP.Base64;
 use Extensible_HTTP.Base64;
 
@@ -88,7 +86,6 @@ procedure Basic_HTTP_Server is
    task body SocketTask is
 
       This_Connection : GNAT.Sockets.Socket_Type;
-      --  This_Client     : GNAT.Sockets.Sock_Addr_Type;
       This_Channel    : GNAT.Sockets.Stream_Access;
       This_Index      : Index;
 
@@ -97,11 +94,8 @@ procedure Basic_HTTP_Server is
 
    begin
       loop
-         accept Setup (Connection : GNAT.Sockets.Socket_Type;
-            --  Client     : GNAT.Sockets.Sock_Addr_Type;
-            Channel               : GNAT.Sockets.Stream_Access; Task_Index : Index) do
+         accept Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Task_Index : Index) do
             This_Connection := Connection;
-            --  This_Client     := Client;
             This_Channel    := Channel;
             This_Index      := Task_Index;
          end Setup;
@@ -110,13 +104,21 @@ procedure Basic_HTTP_Server is
 
          declare
 
-            Request : constant HTTP_11_Request_Message := HTTP_11_Request_Message'Input (This_Channel);
-            Send    : HTTP_11_Response_Message         :=
+            Request : HTTP_11_Request_Message;
+            Send    : HTTP_11_Response_Message :=
               (Status => 500,
                others => <>);
             F       : File_Type;
 
          begin
+            select
+               delay 1.0;
+               Send.Status := 408;
+               goto Send_Response;
+            then abort
+               Request := HTTP_11_Request_Message'Input (This_Channel);
+            end select;
+
             begin
                case Request.Method is
                   when GET
@@ -304,11 +306,11 @@ procedure Basic_HTTP_Server is
    Use_Task   : Index;
 
 begin
-   Define_Switch (Config, Port_Option'Access, "-p:", "--port:", "Listen on specified port for HTTP", Initial => 80);
-   Define_Switch (Config, IP_Option'Access, "-i:", "--ip-address:", "Listen on specified IP for HTTP");
-   Define_Switch (Config, PUT_Username'Access, "-u:", "--username:", "Restrict HTTP PUT requests to the specified username");
-   Define_Switch (Config, PUT_Password'Access, "-w:", "--password:", "Restrict HTTP PUT requests to the specified password");
-   Define_Switch (Config, Maven_Directory'Access, "-d:", "--maven-directory:", "Save uploaded files from PUTs to this directory (will be HTTP root)");
+   Define_Switch (Config, Port_Option'Access, "-p=", "--port=", "Listen on specified port for HTTP", Initial => 80);
+   Define_Switch (Config, IP_Option'Access, "-i=", "--ip-address=", "Listen on specified IP for HTTP");
+   Define_Switch (Config, PUT_Username'Access, "-u=", "--username=", "Restrict HTTP PUT requests to the specified username");
+   Define_Switch (Config, PUT_Password'Access, "-w=", "--password=", "Restrict HTTP PUT requests to the specified password");
+   Define_Switch (Config, Maven_Directory'Access, "-d=", "--directory=", "Save uploaded files from PUTs to this directory (will be HTTP root)");
    Define_Switch (Config, "-h", "--help", "Display help");
 
    begin
@@ -322,7 +324,7 @@ begin
       Set_Directory (Maven_Directory.all);
    exception
       when Exit_From_Command_Line =>
-         Ada.Text_IO.Put_Line (ASCII.LF & "Report problems to Bread Experts Group " & "[https://github.com/Bread-Experts-Group]");
+         Ada.Text_IO.Put_Line (ASCII.LF & "Report problems to Bread Experts Group " & "[https://github.com/Bread-Experts-Group/basic_http_server]");
          GNAT.OS_Lib.OS_Exit (0);
 
       when E : others =>
