@@ -116,7 +116,7 @@ procedure Basic_HTTP_Server is
                Send.Status := 408;
                goto Send_Response;
             then abort
-               Request := HTTP_11_Request_Message'Input (This_Channel);
+               HTTP_11_Request_Message'Read (This_Channel, Request);
             end select;
 
             begin
