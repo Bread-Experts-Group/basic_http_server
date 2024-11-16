@@ -21,6 +21,8 @@ use Extensible_HTTP.HTTP11;
 with Extensible_HTTP.Base64;
 use Extensible_HTTP.Base64;
 
+with TLS;
+
 procedure Basic_HTTP_Server is
 
    Tasks_To_Create : constant := 50;
@@ -83,7 +85,7 @@ procedure Basic_HTTP_Server is
    task body SocketTask is
 
       This_Connection : GNAT.Sockets.Socket_Type;
-      This_Channel    : GNAT.Sockets.Stream_Access;
+      This_Channel    : TLS.Stream_Wrapper_Access;
       This_Index      : Index;
 
       Search      : Search_Type;
@@ -93,7 +95,7 @@ procedure Basic_HTTP_Server is
       loop
          accept Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Task_Index : Index) do
             This_Connection := Connection;
-            This_Channel    := Channel;
+            This_Channel    := TLS.Wrap_Stream (TLS.Stream_Access (Channel));
             This_Index      := Task_Index;
          end Setup;
 
@@ -281,7 +283,7 @@ procedure Basic_HTTP_Server is
             then
                Close (F);
             end if;
-            HTTP_11_Response_Message'Write (This_Channel, Send);
+            HTTP_11_Response_Message'Write (This_Channel.Stream, Send);
          exception
             when Ada.Streams.Stream_IO.End_Error =>
                null;

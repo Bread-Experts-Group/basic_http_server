@@ -15,3 +15,8 @@ extensible_http = "~0.1.0-dev"
 [[pins]]
 extensible_http = { path='../extensible_http' }
 
+[[depends-on]]
+tls = "~0.1.0-dev"
+
+[[pins]]
+tls = { path='../tls' }
