@@ -68,35 +68,45 @@ procedure Basic_HTTP_Server is
 
    end Info;
 
-   Task_Info : Info;
+   Config             : Command_Line_Configuration;
+   No_TLS_Port_Option : aliased Integer                    := -1;
+   TLS_Port_Option    : aliased Integer                    := -1;
+   IP_Option          : aliased GNAT.Strings.String_Access := new String'("0.0.0.0");
+   PUT_Username       : aliased GNAT.Strings.String_Access := new String'("<none>");
+   PUT_Password       : aliased GNAT.Strings.String_Access := new String'("<none>");
+   PUT_Directory      : aliased GNAT.Strings.String_Access := new String'(Current_Directory);
 
-   Config          : Command_Line_Configuration;
-   Port_Option     : aliased Integer                    := 80;
-   IP_Option       : aliased GNAT.Strings.String_Access := new String'("0.0.0.0");
-   PUT_Username    : aliased GNAT.Strings.String_Access := new String'("<none>");
-   PUT_Password    : aliased GNAT.Strings.String_Access := new String'("<none>");
-   Maven_Directory : aliased GNAT.Strings.String_Access := new String'(Current_Directory);
+   Task_Info_Group : array (1 .. 2)
+     of aliased Info;
 
    task type SocketTask is
-      entry Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Task_Index : Index);
+      entry Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Index : Integer; Task_Info_Index : Integer; Start_TLS : Boolean);
       entry Start;
+
    end SocketTask;
 
    task body SocketTask is
 
       This_Connection : GNAT.Sockets.Socket_Type;
-      This_Channel    : TLS.Stream_Wrapper_Access;
-      This_Index      : Index;
+      This_Channel    : TLS.TLS_Stream_Access;
+      This_Index      : Integer;
+      This_Task_Info  : access Info;
 
       Search      : Search_Type;
       Search_Item : Directory_Entry_Type;
 
    begin
       loop
-         accept Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Task_Index : Index) do
+         accept Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Index : Integer; Task_Info_Index : Integer; Start_TLS : Boolean) do
             This_Connection := Connection;
             This_Channel    := TLS.Wrap_Stream (TLS.Stream_Access (Channel));
-            This_Index      := Task_Index;
+            This_Index      := Index;
+            This_Task_Info  := Task_Info_Group (Task_Info_Index)'Access;
+
+            if Start_TLS
+            then
+               This_Channel.Enable_TLS;
+            end if;
          end Setup;
 
          accept Start;
@@ -115,7 +125,7 @@ procedure Basic_HTTP_Server is
                Send.Status := 408;
                goto Send_Response;
             then abort
-               HTTP_11_Request_Message'Read (This_Channel, Request);
+               HTTP_11_Request_Message'Read (This_Channel.Stream, Request);
             end select;
 
             begin
@@ -292,35 +302,84 @@ procedure Basic_HTTP_Server is
                Ada.Text_IO.Put_Line ("Task" & This_Index'Image & ": " & E.Exception_Information);
          end;
          GNAT.Sockets.Close_Socket (This_Connection);
-         Task_Info.Push_Stack (This_Index);
+         This_Task_Info.Push_Stack (This_Index);
       end loop;
    end SocketTask;
 
-   Receiver   : GNAT.Sockets.Socket_Type;
-   Connection : GNAT.Sockets.Socket_Type;
-   Client     : GNAT.Sockets.Sock_Addr_Type;
-   Channel    : GNAT.Sockets.Stream_Access;
-   Worker     : array (1 .. Tasks_To_Create)
-     of SocketTask;
-   Use_Task   : Index;
+   task type Server_Task (Port : Integer; Task_Info_Index : Integer; Start_TLS : Boolean);
+
+   task body Server_Task is
+
+      Task_Info : access Info := Task_Info_Group (Task_Info_Index)'Access;
+
+      Receiver   : GNAT.Sockets.Socket_Type;
+      Connection : GNAT.Sockets.Socket_Type;
+      Client     : GNAT.Sockets.Sock_Addr_Type;
+      Channel    : GNAT.Sockets.Stream_Access;
+      Worker     : array (1 .. Tasks_To_Create)
+        of SocketTask;
+      Use_Task   : Index;
+
+   begin
+      GNAT.Sockets.Create_Socket (Socket => Receiver);
+      GNAT.Sockets.Set_Socket_Option
+        (Socket => Receiver,
+         Level  => GNAT.Sockets.Socket_Level,
+         Option =>
+           (Name    => GNAT.Sockets.Reuse_Address,
+            Enabled => True));
+      GNAT.Sockets.Bind_Socket
+        (Socket  => Receiver,
+         Address =>
+           (Family => GNAT.Sockets.Family_Inet,
+            Addr   => GNAT.Sockets.Inet_Addr (IP_Option.all),
+            Port   => GNAT.Sockets.Port_Type (Port)));
+      GNAT.Sockets.Listen_Socket (Socket => Receiver);
+
+      Task_Info.Initialize_Stack;
+      Find :
+         loop
+            GNAT.Sockets.Accept_Socket (Server => Receiver, Socket => Connection, Address => Client);
+            Channel := GNAT.Sockets.Stream (Connection);
+            Task_Info.Pop_Stack (Use_Task);
+            Worker (Use_Task).Setup (Connection, Channel, Use_Task, Task_Info_Index, Start_TLS);
+            Worker (Use_Task).Start;
+         end loop Find;
+   end Server_Task;
+
+   Servers : array (1 .. 2)
+     of access Server_Task;
 
 begin
-   Define_Switch (Config, Port_Option'Access, "-p=", "--port=", "Listen on specified port for HTTP", Initial => 80);
-   Define_Switch (Config, IP_Option'Access, "-i=", "--ip-address=", "Listen on specified IP for HTTP");
+   Define_Switch (Config, No_TLS_Port_Option'Access, "-ntp=", "--no-tls-port=", "Listen on specified port for HTTP", Initial => -1);
+   Define_Switch (Config, TLS_Port_Option'Access, "-tp=", "--tls-port=", "Listen on specified port for HTTPS (TLS)", Initial => -1);
+   Define_Switch (Config, IP_Option'Access, "-ip=", "--ip-address=", "Listen on specified IP for HTTP");
    Define_Switch (Config, PUT_Username'Access, "-u=", "--username=", "Restrict HTTP PUT requests to the specified username");
    Define_Switch (Config, PUT_Password'Access, "-w=", "--password=", "Restrict HTTP PUT requests to the specified password");
-   Define_Switch (Config, Maven_Directory'Access, "-d=", "--directory=", "Save uploaded files from PUTs to this directory (will be HTTP root)");
+   Define_Switch (Config, PUT_Directory'Access, "-d=", "--directory=", "Save uploaded files from PUTs to this directory (will be HTTP root)");
    Define_Switch (Config, "-h", "--help", "Display help");
 
    begin
       Getopt (Config);
 
-      if Port_Option not in 0 .. 65_535
+      if No_TLS_Port_Option = -1 and then TLS_Port_Option = -1
       then
-         raise Constraint_Error with "Port must be within 0 - 65535";
+         raise Constraint_Error with "At least one of the TLS or No_TLS port options must be set between 0 - 65535";
+
+      elsif No_TLS_Port_Option > -1 and then No_TLS_Port_Option not in 0 .. 65_535
+      then
+         raise Constraint_Error with "No_TLS port must be within 0 - 65535";
+
+      elsif TLS_Port_Option > -1 and then TLS_Port_Option not in 0 .. 65_535
+      then
+         raise Constraint_Error with "TLS port must be within 0 - 65535";
+
+      elsif TLS_Port_Option = No_TLS_Port_Option
+      then
+         raise Constraint_Error with "TLS and No_TLS port must be separate";
       end if;
-      Create_Path (Maven_Directory.all);
-      Set_Directory (Maven_Directory.all);
+      Create_Path (PUT_Directory.all);
+      Set_Directory (PUT_Directory.all);
    exception
       when Exit_From_Command_Line =>
          Ada.Text_IO.Put_Line (ASCII.LF & "Report problems to Bread Experts Group " & "[https://github.com/Bread-Experts-Group/basic_http_server]");
@@ -331,28 +390,13 @@ begin
          GNAT.OS_Lib.OS_Exit (1);
    end;
 
-   GNAT.Sockets.Create_Socket (Socket => Receiver);
-   GNAT.Sockets.Set_Socket_Option
-     (Socket => Receiver,
-      Level  => GNAT.Sockets.Socket_Level,
-      Option =>
-        (Name    => GNAT.Sockets.Reuse_Address,
-         Enabled => True));
-   GNAT.Sockets.Bind_Socket
-     (Socket  => Receiver,
-      Address =>
-        (Family => GNAT.Sockets.Family_Inet,
-         Addr   => GNAT.Sockets.Inet_Addr (IP_Option.all),
-         Port   => GNAT.Sockets.Port_Type (Port_Option)));
-   GNAT.Sockets.Listen_Socket (Socket => Receiver);
+   if No_TLS_Port_Option > -1
+   then
+      Servers (1) := new Server_Task (No_TLS_Port_Option, 1, False);
+   end if;
 
-   Task_Info.Initialize_Stack;
-   Find :
-      loop
-         GNAT.Sockets.Accept_Socket (Server => Receiver, Socket => Connection, Address => Client);
-         Channel := GNAT.Sockets.Stream (Connection);
-         Task_Info.Pop_Stack (Use_Task);
-         Worker (Use_Task).Setup (Connection, Channel, Use_Task);
-         Worker (Use_Task).Start;
-      end loop Find;
+   if TLS_Port_Option > -1
+   then
+      Servers (2) := new Server_Task (TLS_Port_Option, 2, True);
+   end if;
 end Basic_HTTP_Server;
