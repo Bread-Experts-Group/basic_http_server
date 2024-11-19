@@ -127,6 +127,7 @@ procedure Basic_HTTP_Server is
             then abort
                HTTP_11_Request_Message'Read (This_Channel.Stream, Request);
             end select;
+            Read_HTTP_11_Message_Body (This_Channel.Stream, Request);
 
             begin
                case Request.Method is

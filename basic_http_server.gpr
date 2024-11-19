@@ -8,11 +8,11 @@ project Basic_Http_Server is
    for Main use ("basic_http_server.adb");
 
    package Builder is
-      for Switches ("Ada") use ("-m2", "-d", "-largs", "-Wl,--gc-sections");
+      for Switches ("Ada") use ("-m2", "-d", "-s", "-j0", "-largs", "-Wl,--gc-sections");
    end Builder;
 
    package Compiler is
-      for Switches ("Ada") use ("-gnatX", "-gnatyM179", "-Ofast", "-flto");
+      for Switches ("Ada") use ("-gnatX", "-gnatyM179", "-g", "-gnateE", "-flto");
       for Default_Switches ("Ada") use Basic_Http_Server_Config.Ada_Compiler_Switches;
    end Compiler;
 
