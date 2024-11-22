@@ -1,2 +1,2 @@
 #!/bin/bash
-./buildAda.sh $1 && sudo bin/basic_http_server-native-$1 ${@:2}
+./buildAda.sh $1 && sudo bin/$1/basic_http_server-native ${@:2}

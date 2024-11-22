@@ -7,10 +7,16 @@ with Ada.Streams.Stream_IO;
 use Ada.Streams.Stream_IO;
 with Ada.Strings.Unbounded;
 use Ada.Strings.Unbounded;
+with Ada.Calendar;
+use Ada.Calendar;
+
+with Interfaces;
 
 with GNAT.OS_Lib;
 with GNAT.Sockets;
 with GNAT.Strings;
+with GNAT.MD5;
+with GNAT.Calendar;
 with GNAT.Command_Line;
 use GNAT.Command_Line;
 
@@ -20,12 +26,14 @@ with Extensible_HTTP.HTTP11;
 use Extensible_HTTP.HTTP11;
 with Extensible_HTTP.Base64;
 use Extensible_HTTP.Base64;
+with Extensible_HTTP.Dates;
+use Extensible_HTTP.Dates;
 
 with TLS;
 
 procedure Basic_HTTP_Server is
 
-   Tasks_To_Create : constant := 50;
+   Tasks_To_Create : constant := 500;
 
    type Integer_List is
      array (1 .. Tasks_To_Create)
@@ -79,6 +87,157 @@ procedure Basic_HTTP_Server is
    Task_Info_Group : array (1 .. 2)
      of aliased Info;
 
+   subtype Cache_Hit is Boolean;
+
+   procedure GET_Procedures (Response : in out HTTP_11_Response_Message; Request : in out HTTP_11_Request_Message; Data : String; Last_Modified : Time) is
+   begin
+      Response.Fields.Include ("ETag", '"' & GNAT.MD5.Digest (Data) & '"');
+      Response.Fields.Include ("Cache-Control", "max-age=3600");
+      Response.Fields.Include ("Last-Modified", Time_To_HTTP_Date_String (Last_Modified));
+      Response.Fields.Include ("Content-Type", "text/plain; charset=utf-8");
+
+      if Request.Fields.Contains ("If-None-Match") or else Request.Fields.Contains ("If-Match")
+      then
+         declare
+
+            ETag         : String  := Response.Fields.Element ("ETag");
+            Matching_For : String  := (if Request.Fields.Contains ("If-None-Match") then Request.Fields.Element ("If-None-Match") else Request.Fields.Element ("If-Match"));
+            Inverted     : Boolean := Request.Fields.Contains ("If-None-Match");
+
+            Reading_From : Natural := 0;
+            Reading_To   : Natural := 1;
+
+         begin
+            loop
+               Reading_From := Ada.Strings.Fixed.Index (Matching_For, ['"'], Reading_To);
+               Reading_To   := Ada.Strings.Fixed.Index (Matching_For, ['"'], Reading_From + 1);
+
+               if Inverted
+               then
+                  if Reading_From = 0 or else Reading_To = 0
+                  then
+                     exit; --  MISS
+                  end if;
+
+                  if Matching_For (Reading_From .. Reading_To) = ETag
+                  then
+                     Response.Status := 304; --  HIT
+                     return;
+                  end if;
+
+               elsif Reading_From = 0 or else Reading_To = 0
+               then
+                  Response.Status := 412;
+                  return;
+               end if;
+            end loop;
+         end;
+         --  MODIFIED SINCE MUST BE REDONE TO FACTOR ACTUAL TIME DIFF
+
+      elsif Request.Fields.Contains ("If-Modified-Since")
+      then
+         if Request.Fields.Element ("If-Unmodified-Since") = Response.Fields.Element ("Last-Modified")
+         then
+            Response.Status := 304; --  HIT
+            return;
+         end if;
+
+      elsif Request.Fields.Contains ("If-Unmodified-Since")
+      then
+         if Request.Fields.Element ("If-Unmodified-Since") /= Response.Fields.Element ("Last-Modified")
+         then
+            Response.Status := 412;
+            return;
+         end if;
+
+      elsif Request.Fields.Contains ("If-Range")
+      then
+         declare
+
+            Range_Check : String := Request.Fields.Element ("If-Range");
+            Read_Range  : String := Request.Fields.Element ("Range");
+
+         begin
+            Ada.Text_IO.Put_Line (Range_Check & " + " & Response.Fields.Element ("ETag"));
+
+            if Range_Check (1) = '"'
+            then
+               if Range_Check = Response.Fields.Element ("ETag")
+               then
+                  Ada.Text_IO.Put_Line ("ETag, " & Read_Range);
+               end if;
+
+            else
+               if Range_Check = Response.Fields.Element ("Last-Modified")
+               then
+                  Ada.Text_IO.Put_Line ("Date, " & Read_Range);
+               end if;
+            end if;
+         end;
+      end if;
+      Response.Status := 200;
+      Response.Message_Body.Replace_Element (Data);
+      Response.Fields.Include ("Content-Length", Response.Message_Body.Element'Length'Image);
+      Response.Fields.Include ("Connection", "close");
+   end GET_Procedures;
+
+   type Directory_Listing_Result is
+     record
+        Contents         : Unbounded_String;
+        Highest_Modified : Time := GNAT.Calendar.No_Time;
+     end record;
+
+   function Get_Directory_Listing (For_Search : in out Search_Type; Request : HTTP_11_Request_Message; Composed_Actual : String) return Directory_Listing_Result is
+   begin
+      declare
+
+         Result      : Directory_Listing_Result;
+         Padded_Kind : String (1 .. Ordinary_File'Image'Length);
+         Padded_Size : String (1 .. 12);
+
+         Search_Item         : Directory_Entry_Type;
+         Send_Human_Friendly : Boolean := Request.Fields.Contains ("Accept-Language");
+
+      begin
+         For_Search.Start_Search (Directory => Composed_Actual, Pattern => "");
+
+         while For_Search.More_Entries
+         loop
+            For_Search.Get_Next_Entry (Search_Item);
+
+            if Search_Item.Modification_Time > Result.Highest_Modified
+            then
+               Result.Highest_Modified := Search_Item.Modification_Time;
+            end if;
+
+            if (Search_Item.Simple_Name = ".." and then Composed_Actual /= Current_Directory) or else (Search_Item.Simple_Name /= "." and then Search_Item.Simple_Name /= "..")
+            then
+               if Send_Human_Friendly
+               then
+                  Ada.Strings.Fixed.Move (Search_Item.Kind'Image, Padded_Kind, Justify => Ada.Strings.Right);
+
+                  if Search_Item.Kind = Ordinary_File
+                  then
+                     Ada.Strings.Fixed.Move (Search_Item.Size'Image & 'B', Padded_Size, Justify => Ada.Strings.Right);
+
+                  else
+                     Ada.Strings.Fixed.Delete (Padded_Size, 1, Padded_Size'Length);
+                  end if;
+                  Result.Contents.Append (Padded_Size & ' ' & Padded_Kind & ' ' & Search_Item.Simple_Name & ASCII.LF);
+
+               else
+                  Result.Contents.Append
+                    (Search_Item.Simple_Name & ASCII.NUL & Search_Item.Size'Image
+                     & (if Search_Item.Kind = Ordinary_File then 'F' elsif Search_Item.Kind = Special_File then 'S' else 'D') & ASCII.LF);
+               end if;
+            end if;
+         end loop;
+         For_Search.End_Search;
+
+         return Result;
+      end;
+   end Get_Directory_Listing;
+
    task type SocketTask is
       entry Setup (Connection : GNAT.Sockets.Socket_Type; Channel : GNAT.Sockets.Stream_Access; Index : Integer; Task_Info_Index : Integer; Start_TLS : Boolean);
       entry Start;
@@ -92,8 +251,7 @@ procedure Basic_HTTP_Server is
       This_Index      : Integer;
       This_Task_Info  : access Info;
 
-      Search      : Search_Type;
-      Search_Item : Directory_Entry_Type;
+      Search : Search_Type;
 
    begin
       loop
@@ -167,44 +325,17 @@ procedure Basic_HTTP_Server is
                                           loop
                                              Contents.Append (Character'Input (S));
                                           end loop;
-                                          Send.Message_Body.Replace_Element (Contents.To_String);
-                                          Send.Status := 200;
+                                          GET_Procedures (Send, Request, Contents.To_String, Modification_Time (Composed_Actual));
+                                          Close (F);
                                        end;
 
                                     when Directory =>
                                        declare
 
-                                          Contents    : Unbounded_String;
-                                          Padded_Kind : String (1 .. Ordinary_File'Image'Length);
-                                          Padded_Size : String (1 .. 12);
+                                          Results : Directory_Listing_Result := Get_Directory_Listing (Search, Request, Composed_Actual);
 
                                        begin
-                                          Search.Start_Search (Directory => Composed_Actual, Pattern => "");
-
-                                          while Search.More_Entries
-                                          loop
-                                             Search.Get_Next_Entry (Search_Item);
-
-                                             if (Search_Item.Simple_Name = ".." and then Composed_Actual /= Current_Directory)
-                                               or else (Search_Item.Simple_Name /= "." and then Search_Item.Simple_Name /= "..")
-                                             then
-                                                Ada.Strings.Fixed.Move (Search_Item.Kind'Image, Padded_Kind, Justify => Ada.Strings.Right);
-
-                                                if Search_Item.Kind = Ordinary_File
-                                                then
-                                                   Ada.Strings.Fixed.Move (Search_Item.Size'Image & 'B', Padded_Size, Justify => Ada.Strings.Right);
-
-                                                else
-                                                   Ada.Strings.Fixed.Delete (Padded_Size, 1, Padded_Size'Length);
-                                                end if;
-                                                Contents.Append (Padded_Size & ' ' & Padded_Kind & ' ' & Search_Item.Simple_Name & ASCII.LF);
-                                             end if;
-                                          end loop;
-                                          Search.End_Search;
-
-                                          Send.Status := 200;
-                                          Send.Fields.Include ("Content-Type", "text/plain; charset=utf-8");
-                                          Send.Message_Body.Replace_Element (Contents.To_String);
+                                          GET_Procedures (Send, Request, Results.Contents.To_String, Results.Highest_Modified);
                                        end;
 
                                     when Special_File =>
@@ -296,7 +427,7 @@ procedure Basic_HTTP_Server is
             end if;
             HTTP_11_Response_Message'Write (This_Channel.Stream, Send);
          exception
-            when Ada.Streams.Stream_IO.End_Error =>
+            when Ada.Streams.Stream_IO.End_Error | GNAT.Sockets.Socket_Error =>
                null;
 
             when E : others =>
