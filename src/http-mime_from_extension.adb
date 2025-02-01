@@ -9,10 +9,12 @@ begin
          return "text/css";
       when "js" =>
          return "text/javascript";
-      when "ads" | "adb" | "ali" | "gpr" | "gitignore" =>
+      when "ads" | "adb" | "ali" | "gpr" | "gitignore" | "txt" =>
          return "text/plain";
       when "png" =>
          return "image/png";
+      when "jpg" =>
+         return "image/jpeg";
       when "ico" =>
          return "image/vnd.microsoft.icon";
       when "otf" =>
@@ -25,6 +27,8 @@ begin
          return "audio/ogg";
       when "mp4" =>
          return "video/mp4";
+      when "webm" =>
+         return "video/webm";
       when "json" =>
          return "application/json";
       when "zip" =>

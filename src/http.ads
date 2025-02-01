@@ -16,10 +16,10 @@ package HTTP is
       Equivalent_Keys => "=");
 
    type HTTP_Method is
-      (GET);
+      (GET, HEAD);
 
    type HTTP_Version is
-      (HTTP_1_1);
+      (HTTP_1_1, HTTP_2, HTTP_3);
 
    type Data_Transmission_Type is
       (NONE, CONTENT_LENGTH, CHUNKED);
@@ -54,18 +54,18 @@ package HTTP is
       Data   : Data_Vectors.Vector;
    end record;
 
-   procedure Write_Server_Message
+   procedure Write_Server_Message_No_Data
       (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
        Message : Server_Message);
 
-   for Server_Message'Write use Write_Server_Message;
+   procedure Write_Server_Message_Data
+      (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
+       Message : Server_Message);
 
    -- MIME --
 
    function MIME_From_Extension (Extension : String; Full : Boolean)
       return String;
-
-private
 
    function Read_Until_Delimiter
       (Stream : not null access Ada.Streams.Root_Stream_Type'Class;

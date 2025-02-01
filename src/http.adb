@@ -135,7 +135,7 @@ package body HTTP is
 
    -- Server Message --
 
-   procedure Write_Server_Message
+   procedure Write_Server_Message_No_Data
       (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
        Message : Server_Message)
    is
@@ -145,20 +145,26 @@ package body HTTP is
       case Message.Version is
          when HTTP_1_1 =>
             String'Write (Stream, "1.1");
+         when HTTP_2 =>
+            String'Write (Stream, "2");
+         when HTTP_3 =>
+            String'Write (Stream, "3");
       end case;
       String'Write (Stream, Message.Status'Image & CRLF);
       case Message.Transmission_Type is
          when NONE =>
             Headers.Include (CL, "0");
          when CONTENT_LENGTH =>
-            declare
-               Size : Integer := 0;
-            begin
-               for Datum of Message.Data loop
-                  Size := Size + Datum'Length;
-               end loop;
-               Headers.Include (CL, Size'Image);
-            end;
+            if not Headers.Contains (CL) then
+               declare
+                  Size : Integer := 0;
+               begin
+                  for Datum of Message.Data loop
+                     Size := Size + Datum'Length;
+                  end loop;
+                  Headers.Include (CL, Size'Image);
+               end;
+            end if;
          when CHUNKED =>
             Headers.Include (TE, "chunked");
       end case;
@@ -166,7 +172,13 @@ package body HTTP is
          String'Write (Stream, Header.Key & ':' & Header.Element & CRLF);
       end loop;
       String'Write (Stream, CRLF);
+   end Write_Server_Message_No_Data;
 
+   procedure Write_Server_Message_Data
+      (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
+       Message : Server_Message)
+   is
+   begin
       case Message.Transmission_Type is
          when NONE =>
             null;
@@ -188,7 +200,7 @@ package body HTTP is
                String'Write (Stream, '0' & CRLF & CRLF);
             end;
       end case;
-   end Write_Server_Message;
+   end Write_Server_Message_Data;
 
    -- MIME --
 
