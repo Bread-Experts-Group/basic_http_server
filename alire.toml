@@ -1,0 +1,15 @@
+name = "static_server"
+description = "An HTTP server for serving static files"
+version = "0.1.0-dev"
+
+authors = ["Miko Elbrecht"]
+maintainers = ["Miko Elbrecht <pmt.mailservice@gmail.com>"]
+maintainers-logins = ["ATPStorages"]
+licenses = "Apache-2.0 WITH LLVM-exception"
+website = ""
+tags = ["http", "static", "server"]
+
+executables = ["static_server"]
+
+[[depends-on]]
+octet_memory_stream = "^1.0.0"
