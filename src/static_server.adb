@@ -10,15 +10,12 @@ with GNAT.Sockets;
 
 with Ada.Directories;       use Ada.Directories;
 with Ada.Strings.Fixed;     use Ada.Strings.Fixed;
-with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Streams.Stream_IO; use Ada.Streams.Stream_IO;
 
 procedure Static_Server is
    Receiver   : GNAT.Sockets.Socket_Type;
    Connection : GNAT.Sockets.Socket_Type;
    Client     : GNAT.Sockets.Sock_Addr_Type;
-
-   CRLF : constant String := ASCII.CR & ASCII.LF;
 
    task type Socket_Task is
       entry Setup (Connection : GNAT.Sockets.Socket_Type);
@@ -40,8 +37,8 @@ procedure Static_Server is
       begin
          loop
             declare
-               Client_Message : constant HTTP.Client_Message :=
-                  HTTP.Client_Message'Input (my_Channel);
+               Client_Message : HTTP.Client_Message := HTTP.Client_Message'Input
+                                                       (my_Channel);
                Path           : String renames Client_Message.Path;
 
                Server_Message : HTTP.Server_Message;
@@ -54,7 +51,14 @@ procedure Static_Server is
                                                         Path'Length -
                                                         Dot_Index,
                                                         ' ');
+               use type HTTP.HTTP_Method;
             begin
+               Client_Message.Data.Free;
+               if Client_Message.Method /= HTTP.GET then
+                  Server_Message.Status := 405;
+                  goto Send;
+               end if;
+
                declare
                   Not_File : exception;
                begin

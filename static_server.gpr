@@ -1,6 +1,9 @@
 with "config/static_server_config.gpr";
 project Static_Server is
 
+   -- for Runtime ("Ada") use "light-tasking-rpi2";
+   -- for Target use "arm-elf";
+
    for Source_Dirs use ("src/", "config/");
    for Object_Dir use "obj/" & Static_Server_Config.Build_Profile;
    for Create_Missing_Dirs use "True";

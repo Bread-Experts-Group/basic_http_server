@@ -13,3 +13,6 @@ executables = ["static_server"]
 
 [[depends-on]]
 octet_memory_stream = "^1.0.0"
+
+[[pins]]
+octet_memory_stream = { path='../../Projects/octet_memory_stream' }

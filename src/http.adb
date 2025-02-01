@@ -7,8 +7,6 @@ with Ada.Strings.Fixed;     use Ada.Strings.Fixed;
 with Octet_Memory_Stream;   use Octet_Memory_Stream;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 
-with Ada.Text_IO;
-
 package body HTTP is
 
    CL   : constant String := "Content-Length";
@@ -86,19 +84,9 @@ package body HTTP is
       end case;
 
       declare
-         Aggregate             : constant String := Read_Until_Delimiter
-                                                    (Stream, CRLF & CRLF);
-         Aggregate_Octet_Array : Octet_Array
-            (Stream_Element_Offset (Aggregate'First) ..
-             Stream_Element_Offset (Aggregate'Last));
-         Aggregate_Stream      : Stream_Access;
+         Aggregate_Stream : Stream_Access := To_Stream
+            (To_Octet_Array (Read_Until_Delimiter (Stream, CRLF & CRLF)));
       begin
-         for I in Aggregate'Range loop
-            Aggregate_Octet_Array (Stream_Element_Offset (I)) :=
-               Octet (Character'Pos (Aggregate (I)));
-         end loop;
-
-         Aggregate_Stream := To_Stream (Aggregate_Octet_Array);
          loop
             declare
                Name : constant String :=
@@ -116,6 +104,7 @@ package body HTTP is
                     else Data));
             end;
          end loop;
+         Aggregate_Stream.Free;
       end;
 
       declare
@@ -131,6 +120,8 @@ package body HTTP is
             Octet_Array'Read (Stream, Data);
          elsif Headers.Contains (TE) then
             TransM := CHUNKED;
+         else
+            TransM := NONE;
          end if;
          return (Path_Length       => DPath.Length,
                  Method            => Method,
@@ -175,7 +166,7 @@ package body HTTP is
          String'Write (Stream, Header.Key & ':' & Header.Element & CRLF);
       end loop;
       String'Write (Stream, CRLF);
-      
+
       case Message.Transmission_Type is
          when NONE =>
             null;
