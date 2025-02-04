@@ -16,7 +16,7 @@ package HTTP is
       Equivalent_Keys => "=");
 
    type HTTP_Method is
-      (GET, HEAD);
+      (GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, CONNECT, TRACE);
 
    type HTTP_Version is
       (HTTP_1_1, HTTP_2, HTTP_3);

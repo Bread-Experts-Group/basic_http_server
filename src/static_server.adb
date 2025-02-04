@@ -1,4 +1,4 @@
-pragma Extensions_Allowed (On);
+pragma Extensions_Allowed (All);
 
 with Ada.Strings;
 with Ada.Text_IO;
@@ -6,6 +6,7 @@ with Ada.IO_Exceptions;
 with Ada.Containers.Vectors;
 
 with HTTP;
+with TLS;
 
 with GNAT.Sockets;
 
@@ -55,7 +56,7 @@ procedure Static_Server is
                use type HTTP.HTTP_Method;
             begin
                Client_Message.Data.Free;
-               if Client_Message.Method /= HTTP.GET then
+               if Client_Message.Method not in HTTP.GET | HTTP.HEAD then
                   Server_Message.Status := 405;
                   goto Send;
                end if;
@@ -91,6 +92,7 @@ procedure Static_Server is
                   ("Accept-Ranges", "bytes");
                Server_Message.Transmission_Type := HTTP.CONTENT_LENGTH;
                HTTP.Write_Server_Message_No_Data (my_Channel, Server_Message);
+               goto Send when Client_Message.Method = HTTP.HEAD;
 
                declare
                   type Response_Range is record
@@ -159,8 +161,8 @@ procedure Static_Server is
          when E : others =>
             Ada.Text_IO.Put_Line (E.Exception_Information);
       end;
-      my_Channel.Free;
       GNAT.Sockets.Close_Socket (my_Connection);
+      my_Channel.Free;
       if File.Is_Open then
          Close (File);
       end if;

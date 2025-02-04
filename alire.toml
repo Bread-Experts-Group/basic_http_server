@@ -12,7 +12,10 @@ tags = ["http", "static", "server"]
 executables = ["static_server"]
 
 [[depends-on]]
-octet_memory_stream = "^1.0.0"
+octet_memory_stream = "^1.1.0"
+
+[[depends-on]]
+tls = "~0.1.0"
 
 [[pins]]
-octet_memory_stream = { path='../../Projects/octet_memory_stream' }
+tls = { path='../tls' }
