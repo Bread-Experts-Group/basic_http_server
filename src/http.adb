@@ -140,6 +140,7 @@ package body HTTP is
        Message : Server_Message)
    is
       Headers : Header_Maps.Map := Message.Headers;
+      use type Ada.Containers.Count_Type;
    begin
       String'Write (Stream, "HTTP/");
       case Message.Version is
@@ -155,14 +156,18 @@ package body HTTP is
          when NONE =>
             Headers.Include (CL, "0");
          when CONTENT_LENGTH =>
-            if not Headers.Contains (CL) then
+            if not Headers.Contains (CL) and then Message.Data.Length > 0 then
                declare
                   Size : Integer := 0;
                begin
                   for Datum of Message.Data loop
                      Size := Size + Datum'Length;
                   end loop;
-                  Headers.Include (CL, Size'Image);
+                  declare
+                     Img : constant String := Size'Image;
+                  begin
+                     Headers.Include (CL, Img (Img'First + 1 .. Img'Last));
+                  end;
                end;
             end if;
          when CHUNKED =>
