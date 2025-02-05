@@ -90,8 +90,7 @@ procedure Static_Server is
                   Response.Status := 304;
                   goto Send;
                end if;
-               Response.Headers.Include
-                  ("Accept-Ranges", "bytes");
+               Response.Headers.Include ("Accept-Ranges", "bytes");
                Response.Transmission_Type := CONTENT_LENGTH;
 
                declare

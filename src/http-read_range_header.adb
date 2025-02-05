@@ -2,11 +2,11 @@ separate (HTTP)
 function Read_Range_Header (Header : String; Content_Size : Natural)
 return Range_Parsing_Result is
    Ranges    : Range_Vectors.Vector;
-   Read_Size : Integer;
+   Read_Size : Integer := 0;
 
    From, To : Unbounded_String;
    Read_To  : Boolean := False;
-   Char     : Character;
+   Char     : Character := ' ';
 
    Error : Server_Message;
 begin
