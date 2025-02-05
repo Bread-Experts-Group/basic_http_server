@@ -1,3 +1,4 @@
+with Ada.Calendar;
 with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Containers.Indefinite_Vectors;
 with Ada.Containers.Vectors;
@@ -100,5 +101,7 @@ package HTTP is
    return String;
 
    function Truncate (Str : String) return String;
+
+   function Image_HTTP (Time : Ada.Calendar.Time) return String;
 
 end HTTP;

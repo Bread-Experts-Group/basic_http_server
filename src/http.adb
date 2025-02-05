@@ -2,10 +2,11 @@ pragma Extensions_Allowed (On);
 
 with Ada.Integer_Text_IO;
 
-with Ada.Streams;           use Ada.Streams;
-with Ada.Strings.Fixed;     use Ada.Strings.Fixed;
-with Octet_Memory_Stream;   use Octet_Memory_Stream;
-with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Streams;             use Ada.Streams;
+with Ada.Strings.Fixed;       use Ada.Strings.Fixed;
+with Octet_Memory_Stream;     use Octet_Memory_Stream;
+with Ada.Strings.Unbounded;   use Ada.Strings.Unbounded;
+with Ada.Calendar.Formatting; use Ada.Calendar.Formatting;
 
 package body HTTP is
 
@@ -219,5 +220,30 @@ package body HTTP is
    begin
       return Str (Str'First + 1 .. Str'Last);
    end Truncate;
+
+   function Image_HTTP (Time : Ada.Calendar.Time) return String is
+      function Pad (Str : String) return String is
+      begin
+         return Ada.Strings.Fixed.Tail (Truncate (Str), 2, Pad => '0');
+      end Pad;
+
+      Days   : constant array (Monday .. Sunday) of String (1 .. 3) :=
+         ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      Months : constant array (1 .. 12) of String (1 .. 3) :=
+         ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
+          "Nov", "Dec"];
+
+      As_Seconds : constant Integer := Integer (Time.Seconds);
+      Time_Str   : constant String :=
+         Days (Day_Of_Week (Time)) & ", " &
+         Pad (Time.Day'Image) & ' ' & Months (Time.Month) & Time.Year'Image &
+         ' ' &
+         Pad (Integer'Image (As_Seconds / 3600)) & ':' &
+         Pad (Integer'Image ((As_Seconds rem 3600) / 60)) & ':' &
+         Pad (Integer'Image (As_Seconds rem 60)) &
+         " GMT";
+   begin
+      return Time_Str;
+   end Image_HTTP;
 
 end HTTP;

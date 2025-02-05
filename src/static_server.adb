@@ -75,11 +75,21 @@ procedure Static_Server is
                      goto Send;
                end;
 
-               --  "; charset=utf-8"
                Response.Status := 200;
                Response.Headers.Include
                   ("Content-Type",
                    MIME_From_Extension (Extension, Dot_Index = 0));
+               Response.Headers.Include
+                  ("Last-Modified",
+                   Image_HTTP (Modification_Time (File.Name)));
+               if
+                  Request.Headers.Contains ("If-Modified-Since") and then
+                  Request.Headers.Element ("If-Modified-Since") =
+                  Response.Headers.Element ("Last-Modified")
+               then
+                  Response.Status := 304;
+                  goto Send;
+               end if;
                Response.Headers.Include
                   ("Accept-Ranges", "bytes");
                Response.Transmission_Type := CONTENT_LENGTH;
@@ -134,9 +144,7 @@ procedure Static_Server is
                   end case;
                exception
                   when End_Error =>
-                     Ada.Text_IO.Put_Line ("EE");
                      Response.Status := 416;
-                     Response.Headers.Clear;
                      Response.Transmission_Type := NONE;
                end;
 
