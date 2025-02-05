@@ -1,5 +1,6 @@
 with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Containers.Indefinite_Vectors;
+with Ada.Containers.Vectors;
 with Ada.Strings.Hash;
 with Ada.Streams;
 
@@ -7,7 +8,7 @@ with Octet_Memory_Stream;
 
 package HTTP is
 
-   -- Base Message --
+   --  Base Message  --
 
    package Header_Maps is new Ada.Containers.Indefinite_Hashed_Maps
      (Key_Type        => String,
@@ -30,7 +31,7 @@ package HTTP is
       Transmission_Type : Data_Transmission_Type := NONE;
    end record;
 
-   -- Client Message --
+   --  Client Message  --
 
    type Client_Message (Path_Length : Natural) is new Message with record
       Method  : HTTP_Method;
@@ -44,7 +45,7 @@ package HTTP is
 
    for Client_Message'Input use Input_Client_Message;
 
-   -- Server Message --
+   --  Server Message  --
 
    package Data_Vectors is new Ada.Containers.Indefinite_Vectors
       (Positive, String);
@@ -62,14 +63,42 @@ package HTTP is
       (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
        Message : Server_Message);
 
-   -- MIME --
+   --  Specialized Header Operations  --
+
+   --  Content MIME Type  --
 
    function MIME_From_Extension (Extension : String; Full : Boolean)
       return String;
+
+   --  Header Ranging  --
+
+   type Response_Range is record
+      From, To : Integer range -1 .. Integer'Last;
+   end record;
+
+   package Range_Vectors is new Ada.Containers.Vectors
+      (Positive, Response_Range);
+
+   type Range_Parsing_Result (OK : Boolean) is record
+      case OK is
+         when True =>
+            Ranges : Range_Vectors.Vector;
+            Size   : Integer;
+         when False =>
+            Error : Server_Message;
+      end case;
+   end record;
+
+   function Read_Range_Header (Header : String; Content_Size : Natural)
+      return Range_Parsing_Result;
+
+   --  General Operations  --
 
    function Read_Until_Delimiter
       (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
        Delimiter : String)
    return String;
+
+   function Truncate (Str : String) return String;
 
 end HTTP;

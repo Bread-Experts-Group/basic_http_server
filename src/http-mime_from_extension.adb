@@ -33,6 +33,8 @@ begin
          return "application/json";
       when "zip" =>
          return "application/zip";
+      when "7z" =>
+         return "application/x-7z-compressed";
       when "toml" =>
          return "application/toml";
       when others  =>

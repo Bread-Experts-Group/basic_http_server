@@ -13,33 +13,7 @@ package body HTTP is
    TE   : constant String := "Transfer-Encoding";
    CRLF : constant String := ASCII.CR & ASCII.LF;
 
-   function Read_Until_Delimiter
-      (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
-       Delimiter : String)
-   return String is
-      Read            : Unbounded_String;
-      Delimiter_Query : Unbounded_String;
-   begin
-      begin
-         loop
-            Delimiter_Query.Append (Character'Input (Stream));
-            if Delimiter_Query.Element (Delimiter_Query.Length) /=
-               Delimiter (Delimiter_Query.Length)
-            then
-               Read.Append (Delimiter_Query);
-               Delimiter_Query.Delete (1, Delimiter_Query.Length);
-            elsif Delimiter_Query.Length = Delimiter'Length then
-               exit;
-            end if;
-         end loop;
-      exception
-         when Out_Of_Bounds_Error =>
-            null;
-      end;
-      return (if Read.Length > 0 then Read.To_String else [ASCII.NUL]);
-   end Read_Until_Delimiter;
-
-   -- Client Message --
+   --  Client Message  --
 
    function Input_Client_Message
       (Stream : not null access Ada.Streams.Root_Stream_Type'Class)
@@ -133,7 +107,7 @@ package body HTTP is
       end;
    end Input_Client_Message;
 
-   -- Server Message --
+   --  Server Message  --
 
    procedure Write_Server_Message_No_Data
       (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
@@ -163,11 +137,7 @@ package body HTTP is
                   for Datum of Message.Data loop
                      Size := Size + Datum'Length;
                   end loop;
-                  declare
-                     Img : constant String := Size'Image;
-                  begin
-                     Headers.Include (CL, Img (Img'First + 1 .. Img'Last));
-                  end;
+                  Headers.Include (CL, Truncate (Size'Image));
                end;
             end if;
          when CHUNKED =>
@@ -207,10 +177,47 @@ package body HTTP is
       end case;
    end Write_Server_Message_Data;
 
-   -- MIME --
+   --  Specialized Header Operations  --
 
    function MIME_From_Extension (Extension : String; Full : Boolean)
       return String
       is separate;
+
+   function Read_Range_Header (Header : String; Content_Size : Natural)
+      return Range_Parsing_Result
+      is separate;
+
+   --  General Operations  --
+
+   function Read_Until_Delimiter
+      (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+       Delimiter : String)
+   return String is
+      Read            : Unbounded_String;
+      Delimiter_Query : Unbounded_String;
+   begin
+      begin
+         loop
+            Delimiter_Query.Append (Character'Input (Stream));
+            if Delimiter_Query.Element (Delimiter_Query.Length) /=
+               Delimiter (Delimiter_Query.Length)
+            then
+               Read.Append (Delimiter_Query);
+               Delimiter_Query.Delete (1, Delimiter_Query.Length);
+            elsif Delimiter_Query.Length = Delimiter'Length then
+               exit;
+            end if;
+         end loop;
+      exception
+         when Out_Of_Bounds_Error =>
+            null;
+      end;
+      return (if Read.Length > 0 then Read.To_String else [ASCII.NUL]);
+   end Read_Until_Delimiter;
+
+   function Truncate (Str : String) return String is
+   begin
+      return Str (Str'First + 1 .. Str'Last);
+   end Truncate;
 
 end HTTP;

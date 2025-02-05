@@ -1,19 +1,16 @@
-pragma Extensions_Allowed (All);
-
 with Ada.Strings;
 with Ada.Text_IO;
 with Ada.IO_Exceptions;
-with Ada.Containers.Vectors;
 
-with HTTP;
 with TLS;
 
 with GNAT.Sockets;
 
+with HTTP; use HTTP;
+
 with Ada.Directories;       use Ada.Directories;
 with Ada.Strings.Fixed;     use Ada.Strings.Fixed;
 with Ada.Streams.Stream_IO; use Ada.Streams.Stream_IO;
-with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 
 procedure Static_Server is
    Receiver   : GNAT.Sockets.Socket_Type;
@@ -40,193 +37,115 @@ procedure Static_Server is
       begin
          loop
             declare
-               Client_Message : HTTP.Client_Message :=
-                  HTTP.Client_Message'Input (my_Channel);
-               Path           : String renames Client_Message.Path;
-
-               Server_Message : HTTP.Server_Message;
+               Request  : Client_Message := Client_Message'Input (my_Channel);
+               Response : Server_Message;
 
                File_Stream  : Stream_Access;
-               Dot_Index    : constant Natural := Index (Path,
+               Dot_Index    : constant Natural := Index (Request.Path,
                                                          ".",
                                                          Ada.Strings.Backward);
-               Extension    : constant String  := Tail (Path,
-                                                        Path'Length -
+               Extension    : constant String  := Tail (Request.Path,
+                                                        Request.Path'Length -
                                                         Dot_Index,
                                                         ' ');
-               use type HTTP.HTTP_Method;
             begin
-               Client_Message.Data.Free;
-               if Client_Message.Method not in HTTP.GET | HTTP.HEAD then
-                  Server_Message.Status := 405;
+               Request.Data.Free;
+               if Request.Method not in GET | HEAD then
+                  Response.Status := 405;
                   goto Send;
                end if;
 
                declare
                   Not_File : exception;
                begin
-                  if Kind (".." & Path) /= Ordinary_File then
+                  if Kind (".." & Request.Path) /= Ordinary_File then
                      raise Not_File;
                   end if;
-                  Open (File, In_File, ".." & Path, "shared=no");
+                  Open (File, In_File, ".." & Request.Path, "shared=no");
                   File_Stream := Stream (File);
                exception
                   when Not_File =>
-                     Server_Message.Status := 400;
+                     Response.Status := 400;
                      goto Send;
                   when Ada.IO_Exceptions.Name_Error =>
-                     Server_Message.Status := 404;
+                     Response.Status := 404;
                      goto Send;
                   when Ada.IO_Exceptions.Use_Error =>
-                     Server_Message.Status := 503;
+                     Response.Status := 503;
                      goto Send;
                end;
 
                --  "; charset=utf-8"
-               Server_Message.Status := 200;
-               Server_Message.Headers.Include
+               Response.Status := 200;
+               Response.Headers.Include
                   ("Content-Type",
-                   HTTP.MIME_From_Extension (Extension, Dot_Index = 0));
-               Server_Message.Headers.Include
+                   MIME_From_Extension (Extension, Dot_Index = 0));
+               Response.Headers.Include
                   ("Accept-Ranges", "bytes");
-               Server_Message.Transmission_Type := HTTP.CONTENT_LENGTH;
+               Response.Transmission_Type := CONTENT_LENGTH;
 
                declare
-                  type Response_Range is record
-                     From, To : Integer range -1 .. Integer'Last;
-                  end record;
-
-                  package Range_Vectors is new Ada.Containers.Vectors
-                     (Positive, Response_Range);
-
-                  Range_Data : constant String :=
-                     (if Client_Message.Headers.Contains ("Range")
-                      then Client_Message.Headers.Element ("Range")
-                      else " ");
-                  Ranges : Range_Vectors.Vector;
-
-                  From, To : Unbounded_String;
-                  Read_To  : Boolean := False;
-                  Char     : Character;
-
-                  Read_Size, Count : Integer;
+                  Count        : Integer;
+                  Range_Result : constant Range_Parsing_Result :=
+                     Read_Range_Header
+                        ((if Request.Headers.Contains ("Range")
+                          then Request.Headers.Element ("Range")
+                          else " bytes=0-"),
+                        Integer (File.Size));
                begin
-                  if
-                     Range_Data'Length > 6 and then
-                     Range_Data (Range_Data'First ..
-                                 Range_Data'First + 5) = "bytes=" and then
-                     Range_Data /= "bytes=0-"
-                  then
-                     for Index in 8 .. Range_Data'Last loop
-                        Char := Range_Data (Index);
-                        case Char is
-                           when '-' =>
-                              if Read_To then
-                                 Server_Message.Status := 400;
-                                 Server_Message.Headers.Clear;
-                                 Server_Message.Transmission_Type := HTTP.NONE;
-                                 goto Send;
-                              end if;
-                              Read_To := True;
-                           when ',' =>
-                              --  TODO, multipart ranging
-                              Server_Message.Status := 501;
-                              Server_Message.Headers.Clear;
-                              Server_Message.Transmission_Type := HTTP.NONE;
-                              goto Send;
-                           when others =>
-                              if Read_To then
-                                 To.Append (Char);
-                              else
-                                 From.Append (Char);
-                              end if;
-                        end case;
-                        goto Add when Index = Range_Data'Last;
-                        goto Next;
-                        <<Add>>
-                        Read_To := False;
-                        declare
-                           From_I : Integer := -1;
-                           To_I   : Integer := -1;
-                        begin
-                           begin
-                              From_I := Natural'Value (From.To_String) + 1;
-                           exception
-                              when Constraint_Error =>
-                                 null;
-                           end;
-
-                           begin
-                              To_I := Natural'Value (To.To_String) + 1;
-                           exception
-                              when Constraint_Error =>
-                                 null;
-                           end;
-
-                           if From_I = -1 then
-                              From_I := Integer (File.Size) - To_I;
-                              To_I := Integer (File.Size);
-                              raise Program_Error;
-                           elsif To_I = -1 then
-                              To_I := Integer (File.Size);
-                           end if;
-
-                           Read_Size := @ + (To_I - From_I) + 1;
-
-                           Ranges.Append (Response_Range'(From_I, To_I));
-                        end;
-                        To.Delete (1, To.Length);
-                        From.Delete (1, From.Length);
-                        <<Next>>
-                     end loop;
-                     Server_Message.Status := 206;
-                  else
-                     Ranges.Append (Response_Range'(1, Integer (File.Size)));
-                     Read_Size := Integer (File.Size);
-                  end if;
-
-                  declare
-                     Img : constant String := Read_Size'Image;
-                     Trc : constant String := Img (Img'First + 1 .. Img'Last);
-                  begin
-                     Server_Message.Headers.Include ("Content-Length", Trc);
-                  end;
-
-                  goto Send when Client_Message.Method = HTTP.HEAD;
-
-                  for Local_Range of Ranges loop
-                     Ada.Text_IO.Put_Line (Local_Range'Image);
-                     File.Set_Index (Positive_Count (Local_Range.From));
-                     Count := (Local_Range.To - Local_Range.From) + 1;
-                     goto Bad_Range when Count < 1;
-                     Chunk_Loop : loop
-                        declare
-                           Chunk : String (1 .. Integer'Min (2 ** 16, Count));
-                        begin
-                           String'Read (File_Stream, Chunk);
-                           Server_Message.Data.Append (Chunk);
-                           Count := @ - Chunk'Length;
-                           exit Chunk_Loop when Count = 0;
-                        end;
-                     end loop Chunk_Loop;
-                  end loop;
+                  case Range_Result.OK is
+                     when True =>
+                        if
+                           Integer (Range_Result.Ranges.Length) > 1 or else
+                           Range_Result.Ranges.First_Element.From /= 0 or else
+                           Range_Result.Ranges.First_Element.To /=
+                              Integer (File.Size)
+                        then
+                           Response.Status := 206;
+                        end if;
+                        for Local_Range of Range_Result.Ranges loop
+                           Response.Headers.Include
+                              ("Content-Range",
+                              "bytes " &
+                              Truncate (Integer'Image (Local_Range.From - 1)) &
+                              '-' &
+                              Truncate (Integer'Image (Local_Range.To - 1)) &
+                              '/' &
+                              Truncate (File.Size'Image));
+                           goto Next_Range when Request.Method = HEAD;
+                           File.Set_Index (Positive_Count (Local_Range.From));
+                           Count := (Local_Range.To - Local_Range.From) + 1;
+                           Chunk_Loop : loop
+                              declare
+                                 Chunk : String (1 ..
+                                                 Integer'Min (2 ** 16, Count));
+                              begin
+                                 String'Read (File_Stream, Chunk);
+                                 Response.Data.Append (Chunk);
+                                 Count := @ - Chunk'Length;
+                                 exit Chunk_Loop when Count = 0;
+                              end;
+                           end loop Chunk_Loop;
+                           <<Next_Range>>
+                        end loop;
+                     when False =>
+                        Response := Range_Result.Error;
+                        goto Send;
+                  end case;
                exception
                   when End_Error =>
-                     goto Bad_Range;
+                     Ada.Text_IO.Put_Line ("EE");
+                     Response.Status := 416;
+                     Response.Headers.Clear;
+                     Response.Transmission_Type := NONE;
                end;
-               goto Send;
 
-               <<Bad_Range>>
-               Server_Message.Status := 416;
-               Server_Message.Headers.Clear;
-               Server_Message.Transmission_Type := HTTP.NONE;
                <<Send>>
-               HTTP.Write_Server_Message_No_Data (my_Channel, Server_Message);
-               <<Send_Data>>
                if File.Is_Open then
                   Close (File);
                end if;
-               HTTP.Write_Server_Message_Data (my_Channel, Server_Message);
+               Write_Server_Message_No_Data (my_Channel, Response);
+               Write_Server_Message_Data (my_Channel, Response);
             end;
          end loop;
       exception
