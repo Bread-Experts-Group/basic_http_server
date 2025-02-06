@@ -17,7 +17,7 @@ package body HTTP is
    --  Client Message  --
 
    function Input_Client_Message
-      (Stream : not null access Ada.Streams.Root_Stream_Type'Class)
+      (Stream : not null access Root_Stream_Type'Class)
    return Client_Message is
       Method    : constant HTTP_Method := HTTP_Method'Value
                                           (Read_Until_Delimiter (Stream, " "));
@@ -82,36 +82,29 @@ package body HTTP is
          Aggregate_Stream.Free;
       end;
 
-      declare
-         Data : Octet_Array (1 ..
-                             (if Headers.Contains (CL) then
-                                 Stream_Element_Offset'Value
-                                    (Headers.Element (CL))
-                              else
-                                 1));
-      begin
-         if Headers.Contains (CL) then
-            TransM := CONTENT_LENGTH;
-            Octet_Array'Read (Stream, Data);
-         elsif Headers.Contains (TE) then
-            TransM := CHUNKED;
-         else
-            TransM := NONE;
-         end if;
-         return (Path_Length       => DPath.Length,
-                 Method            => Method,
-                 Version           => MVersion,
-                 Path              => DPath.To_String,
-                 Headers           => Headers,
-                 Transmission_Type => TransM,
-                 Data              => To_Stream (Data));
-      end;
+      if Headers.Contains (CL) then
+         TransM := CONTENT_LENGTH;
+      elsif Headers.Contains (TE) then
+         TransM := CHUNKED;
+         raise Program_Error;
+      else
+         TransM := NONE;
+      end if;
+      return (Path_Length        => DPath.Length,
+               Method            => Method,
+               Version           => MVersion,
+               Path              => DPath.To_String,
+               Headers           => Headers,
+               Transmission_Type => TransM,
+               Data_Length       => (if Headers.Contains (CL)
+                                     then Integer'Value (Headers.Element (CL))
+                                     else 0));
    end Input_Client_Message;
 
    --  Server Message  --
 
    procedure Write_Server_Message_No_Data
-      (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
+      (Stream  : not null access Root_Stream_Type'Class;
        Message : Server_Message)
    is
       Headers : Header_Maps.Map := Message.Headers;
@@ -151,7 +144,7 @@ package body HTTP is
    end Write_Server_Message_No_Data;
 
    procedure Write_Server_Message_Data
-      (Stream  : not null access Ada.Streams.Root_Stream_Type'Class;
+      (Stream  : not null access Root_Stream_Type'Class;
        Message : Server_Message)
    is
    begin
@@ -191,7 +184,7 @@ package body HTTP is
    --  General Operations  --
 
    function Read_Until_Delimiter
-      (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+      (Stream : not null access Root_Stream_Type'Class;
        Delimiter : String)
    return String is
       Read            : Unbounded_String;

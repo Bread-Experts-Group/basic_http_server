@@ -5,8 +5,6 @@ with Ada.Containers.Vectors;
 with Ada.Strings.Hash;
 with Ada.Streams;
 
-with Octet_Memory_Stream;
-
 package HTTP is
 
    --  Base Message  --
@@ -35,9 +33,9 @@ package HTTP is
    --  Client Message  --
 
    type Client_Message (Path_Length : Natural) is new Message with record
-      Method  : HTTP_Method;
-      Path    : String (1 .. Path_Length);
-      Data    : Octet_Memory_Stream.Stream_Access;
+      Method      : HTTP_Method;
+      Path        : String (1 .. Path_Length);
+      Data_Length : Integer;
    end record;
 
    function Input_Client_Message
