@@ -56,7 +56,7 @@ begin
          Read_Range_Header
             ((if Request.Headers.Contains ("Range")
                then Request.Headers.Element ("Range")
-               else " bytes=0-"),
+               else "bytes=0-"),
             Integer (File.Size));
    begin
       case Range_Result.OK is

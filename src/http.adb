@@ -74,8 +74,8 @@ package body HTTP is
                end if;
                Headers.Include
                   (Name,
-                   (if Data (Data'First) = ' ' then
-                     Data (Data'First + 1 .. Data'Last)
+                   (if Data (Data'First) = ' '
+                    then Truncate (Data)
                     else Data));
             end;
          end loop;
@@ -108,7 +108,6 @@ package body HTTP is
        Message : Server_Message)
    is
       Headers : Header_Maps.Map := Message.Headers;
-      use type Ada.Containers.Count_Type;
    begin
       String'Write (Stream, "HTTP/");
       case Message.Version is

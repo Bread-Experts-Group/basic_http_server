@@ -50,7 +50,7 @@ package HTTP is
       (Positive, String);
 
    type Server_Message is new Message with record
-      Status : Integer range 100 .. 999;
+      Status : Integer range 100 .. 599;
       Data   : Data_Vectors.Vector;
    end record;
 
@@ -67,7 +67,10 @@ package HTTP is
    --  Content MIME Type  --
 
    function MIME_From_Extension (Extension : String; Full : Boolean)
-      return String;
+      return String with
+         Global => null,
+         Post   => MIME_From_Extension'Result'Length > 2 and then
+                   (for some C of MIME_From_Extension'Result => C = '/');
 
    --  Header Ranging  --
 
@@ -86,19 +89,31 @@ package HTTP is
          when False =>
             Error : Server_Message;
       end case;
-   end record;
+   end record with
+      Predicate => (if OK
+                    then Ranges.Length > 0
+                    else Error.Status in 400 .. 599);
+
+   use type Ada.Containers.Count_Type;
 
    function Read_Range_Header (Header : String; Content_Size : Natural)
-      return Range_Parsing_Result;
+      return Range_Parsing_Result with
+         Pre    => Header (Header'First .. Header'First + 5) = "bytes=",
+         Global => null;
 
    --  General Operations  --
 
    function Read_Until_Delimiter
-      (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
-       Delimiter : String)
-   return String;
+      (Stream    : not null access Ada.Streams.Root_Stream_Type'Class;
+       Delimiter :                 String)
+   return String with
+      Pre    => Delimiter'Length > 0,
+      Global => null;
 
-   function Truncate (Str : String) return String;
+   function Truncate (Str : String) return String with
+      Pre    => Str'Length > 0,
+      Post   => Truncate'Result'Length = Str'Length - 1,
+      Global => null;
 
    function Image_HTTP (Time : Ada.Calendar.Time) return String;
 

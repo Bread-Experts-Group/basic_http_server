@@ -10,7 +10,7 @@ return Range_Parsing_Result is
 
    Error : Server_Message;
 begin
-   for Index in 8 .. Header'Last loop
+   for Index in Header'First + 6 .. Header'Last loop
       Char := Header (Index);
       case Char is
          when '-' =>

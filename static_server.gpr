@@ -12,7 +12,7 @@ project Static_Server is
 
    package Compiler is
       for Switches ("Ada") use
-         ("-gnatX0") & Static_Server_Config.Ada_Compiler_Switches;
+         ("-gnatX0", "-gnata") & Static_Server_Config.Ada_Compiler_Switches;
    end Compiler;
 
    package Binder is
