@@ -69,9 +69,7 @@ package body HTTP is
                Data : constant String :=
                   Read_Until_Delimiter (Aggregate_Stream, CRLF);
             begin
-               if Name'Length = 1 and then Name (Name'First) = ASCII.NUL then
-                  exit;
-               end if;
+               exit when Name'Length = 0;
                Headers.Include
                   (Name,
                    (if Data (Data'First) = ' '
@@ -205,7 +203,7 @@ package body HTTP is
          when Out_Of_Bounds_Error =>
             null;
       end;
-      return (if Read.Length > 0 then Read.To_String else [ASCII.NUL]);
+      return (if Read.Length > 0 then Read.To_String else []);
    end Read_Until_Delimiter;
 
    function Truncate (Str : String) return String is
