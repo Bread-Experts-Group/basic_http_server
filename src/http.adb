@@ -6,13 +6,14 @@ with Ada.Streams;             use Ada.Streams;
 with Ada.Strings.Fixed;       use Ada.Strings.Fixed;
 with Octet_Memory_Stream;     use Octet_Memory_Stream;
 with Ada.Strings.Unbounded;   use Ada.Strings.Unbounded;
+with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with Ada.Calendar.Formatting; use Ada.Calendar.Formatting;
 
 package body HTTP is
 
    CL   : constant String := "Content-Length";
    TE   : constant String := "Transfer-Encoding";
-   CRLF : constant String := ASCII.CR & ASCII.LF;
+   CRLF : constant String := CR & LF;
 
    --  Client Message  --
 
